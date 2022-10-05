@@ -29,12 +29,9 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-	// fmt.Println(db.NewGroup("abab"))
-	// gs, _ := db.GetAllGroups()
-	// g := gs[0]
-	// fmt.Println(g)
-	// fmt.Println(g.GetSessions())
-	// fmt.Println(g.NewSession("ccccc"))
-	// fmt.Println(g.GetSessions())
-	api.Serve()
+
+	server := api.NewServer(db)
+	server.SetAddr(cfg.Api.Address)
+	server.SetPrefix(cfg.Api.Prefix)
+	server.Serve()
 }

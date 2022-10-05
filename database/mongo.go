@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -33,10 +32,11 @@ type sessionBson struct {
 	ID    primitive.ObjectID `bson:"_id,omitempty"`
 	Group primitive.ObjectID `bson:"group,omitempty"`
 	Info  string             `bson:"info,omitempty"`
+	Hook  string             `bson:"hook,omitempty"`
 }
 
 func (s sessionBson) toSession(db *MongoDatabase) session {
-	return session{ID: s.ID, Group: s.Group, Info: s.Info, db: db}
+	return session{ID: s.ID, Group: s.Group, Info: s.Info, db: db, PushHook: s.Hook}
 }
 
 func NewMongo(atlasURI string, database string) (Database, error) {
@@ -45,7 +45,7 @@ func NewMongo(atlasURI string, database string) (Database, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx := context.Background()
 	err = client.Connect(ctx)
 	if err != nil {
 		return nil, err
@@ -84,14 +84,15 @@ func (db *MongoDatabase) NewGroup(info string) (string, error) {
 func (db *MongoDatabase) GetGroupByID(id string) (Group, error) {
 	_id, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, fmt.Errorf("getGroupByID: invalid id %v", err)
+		return nil, fmt.Errorf("getGroupByID invalid id \"%v\": %v", id, err)
 	}
 	r := db.groupCollection.FindOne(db.ctx, bson.D{{"_id", _id}})
-	g := group{}
+	g := groupBson{}
 	if err := r.Decode(&g); err != nil {
 		return nil, fmt.Errorf("getGroupByID: %v", err)
 	}
-	return &g, nil
+	group := g.toGroup(db)
+	return &group, nil
 }
 
 func (db *MongoDatabase) GetAllGroups() ([]group, error) {
@@ -122,9 +123,9 @@ func (g *group) SetInfo(info string) error {
 	return nil
 }
 
-func (g *group) NewSession(info string) (string, error) {
+func (g *group) NewSession(hook string, info string) (string, error) {
 	db := g.db
-	s := sessionBson{Group: g.ID, Info: info}
+	s := sessionBson{Group: g.ID, Hook: hook, Info: info}
 	r, err := db.sessionCollection.InsertOne(db.ctx, s)
 	if err != nil {
 		return "", fmt.Errorf("newSession: %v", err)
@@ -133,7 +134,7 @@ func (g *group) NewSession(info string) (string, error) {
 	return id.Hex(), nil
 }
 
-func (g *group) GetSessions() ([]session, error) {
+func (g *group) GetSessions() ([]Session, error) {
 	db := g.db
 	cur, err := g.db.sessionCollection.Find(db.ctx, bson.D{{"group", g.ID}})
 	if err != nil {
@@ -143,7 +144,7 @@ func (g *group) GetSessions() ([]session, error) {
 	if err = cur.All(db.ctx, &l); err != nil {
 		return nil, fmt.Errorf("getSessions All: %v", err)
 	}
-	f := func(s sessionBson) session { return s.toSession(db) }
+	f := func(s sessionBson) Session { r := s.toSession(db); return &r }
 	return Map(l, f), nil
 }
 
@@ -184,6 +185,17 @@ func (s *session) SetGroup(groupID string) error {
 	}
 	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "group", id); err != nil {
 		return fmt.Errorf("session setGroup: %v", err)
+	}
+	return nil
+}
+
+func (s *session) GetPushHook() string {
+	return s.PushHook
+}
+
+func (s *session) SetPushHook(url string) error {
+	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "hook", url); err != nil {
+		return fmt.Errorf("session setPushHook: %v", err)
 	}
 	return nil
 }

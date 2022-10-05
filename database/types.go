@@ -8,8 +8,8 @@ type Group interface {
 	GetID() string
 	GetInfo() string
 	SetInfo(info string) error
-	NewSession(info string) (string, error)
-	GetSessions() ([]session, error)
+	NewSession(hook string, info string) (string, error)
+	GetSessions() ([]Session, error)
 }
 
 type Session interface {
@@ -18,6 +18,8 @@ type Session interface {
 	SetInfo(info string) error
 	GetGroup() string
 	SetGroup(groupID string) error
+	GetPushHook() string
+	SetPushHook(url string) error
 }
 
 type Database interface {
@@ -33,8 +35,9 @@ type group struct {
 }
 
 type session struct {
-	ID    primitive.ObjectID
-	Group primitive.ObjectID
-	Info  string
-	db    *MongoDatabase
+	ID       primitive.ObjectID
+	Group    primitive.ObjectID
+	Info     string
+	PushHook string
+	db       *MongoDatabase
 }

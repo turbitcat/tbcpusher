@@ -16,12 +16,17 @@ type Config struct {
 		AtlasURI string `yaml:"uri" envconfig:"MONGO_ATLAS_URI"`
 		Database string `yaml:"database" envconfig:"MONGO_DATABASE"`
 	} `yaml:"mongo"`
+	Api struct {
+		Address string `yaml:"address" envconfig:"API_ADDRESS"`
+		Prefix  string `yaml:"prefix" envconfig:"API_PREFIX"`
+	} `yaml:"api"`
 }
 
 func New() Config {
 	var cfg Config
 	cfg.Mongo.AtlasURI = "mongodb://root:example@127.0.0.1:27017"
 	cfg.Mongo.Database = "tbcpusher"
+	cfg.Api.Address = ":8000"
 	return cfg
 }
 
