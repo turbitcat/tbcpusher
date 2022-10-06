@@ -31,14 +31,14 @@ func JoinGroup(u string, groupID string, callback string, info string) (string, 
 	q.Add("hook", callback)
 	q.Add("info", info)
 	ur.RawQuery = q.Encode()
-	fmt.Printf("JoinGroup: GET %v", ur.String())
+	fmt.Printf("JoinGroup: GET %v\n", ur.String())
 	resp, err := http.Get(ur.String())
 	if err != nil {
 		return "", fmt.Errorf("joinGroup GET: %v", err)
 	}
 	if !contentTypeIsJSON(resp.Header) {
 		b, _ := ioutil.ReadAll(resp.Body)
-		return "", fmt.Errorf("joinGroup resp not json: %v", b)
+		return "", fmt.Errorf("joinGroup resp not json: %v", string(b))
 	}
 	var rs struct{ Id string }
 	if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
@@ -56,7 +56,7 @@ func HideSession(u string, sessionID string) error {
 	q := ur.Query()
 	q.Add("session", sessionID)
 	ur.RawQuery = q.Encode()
-	fmt.Printf("HideSession: GET %v", ur.String())
+	fmt.Printf("HideSession: GET %v\n", ur.String())
 	resp, err := http.Get(ur.String())
 	if err != nil {
 		return fmt.Errorf("hideSession: %v", err)
@@ -76,7 +76,7 @@ func CheckSession(u string, sessionID string) (*SessionInfo, error) {
 	q := ur.Query()
 	q.Add("session", sessionID)
 	ur.RawQuery = q.Encode()
-	fmt.Printf("JoinSession: GET %v", ur.String())
+	fmt.Printf("JoinSession: GET %v\n", ur.String())
 	resp, err := http.Get(ur.String())
 	if err != nil {
 		return nil, fmt.Errorf("checkSession GET: %v", err)
