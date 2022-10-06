@@ -29,9 +29,10 @@ var Articles []Article = []Article{
 }
 
 type Server struct {
-	db     database.Database
-	addr   string
-	prefix string
+	db      database.Database
+	addr    string
+	prefix  string
+	checkCT bool
 }
 
 const pathCreateGroup = "/group/create"
@@ -56,6 +57,10 @@ func (s *Server) SetPrefix(p string) {
 	s.prefix = p
 }
 
+func (s *Server) SetContenetTypeCheck(b bool) {
+	s.checkCT = b
+}
+
 func (s *Server) Serve() error {
 	http.HandleFunc(s.prefix+pathCreateGroup, s.createGroup)
 	http.HandleFunc(s.prefix+pathPushToGroup, s.pushToGroup)
@@ -66,10 +71,23 @@ func (s *Server) Serve() error {
 	return http.ListenAndServe(s.addr, nil)
 }
 
+func (s *Server) getStringParams(r *http.Request, param string) string {
+	p := r.URL.Query().Get(param)
+	if !s.checkCT || contentTypeIsJSON(r.Header) {
+		b := make(map[string]string)
+		err := json.NewDecoder(r.Body).Decode(&b)
+		fmt.Println(b)
+		if err == nil && b[param] != "" {
+			p = b[param]
+		}
+	}
+	return p
+}
+
 // info={}
 func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: createGroup")
-	info := getParamStringFromURLAndBody(r, "info")
+	info := s.getStringParams(r, "info")
 	id, err := s.db.NewGroup(info)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -83,20 +101,20 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 // group={groupid}&hook={callbackurl}&info={}
 func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: createSession")
-	groupID := getParamStringFromURLAndBody(r, "group")
+	groupID := s.getStringParams(r, "group")
 	g, err := s.db.GetGroupByID(groupID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print(err.Error())
 		return
 	}
-	hook := getParamStringFromURLAndBody(r, "hook")
+	hook := s.getStringParams(r, "hook")
 	if hook == "" {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print("hook url is empty")
 		return
 	}
-	info := getParamStringFromURLAndBody(r, "info")
+	info := s.getStringParams(r, "info")
 	id, err := g.NewSession(hook, info)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -110,16 +128,16 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 // group={groupid}&author={}&title={}&content={}
 func (s *Server) pushToGroup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: pushToGroup")
-	groupID := getParamStringFromURLAndBody(r, "group")
+	groupID := s.getStringParams(r, "group")
 	g, err := s.db.GetGroupByID(groupID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print(err.Error())
 		return
 	}
-	author := getParamStringFromURLAndBody(r, "author")
-	title := getParamStringFromURLAndBody(r, "title")
-	content := getParamStringFromURLAndBody(r, "content")
+	author := s.getStringParams(r, "author")
+	title := s.getStringParams(r, "title")
+	content := s.getStringParams(r, "content")
 	m := Message{Author: author, Title: title, Content: content}
 	group := Group{g}
 	resps, err := group.Push(&m)
@@ -141,16 +159,16 @@ func (s *Server) pushToGroup(w http.ResponseWriter, r *http.Request) {
 // session={sessionid}&author={}&title={}&content={}
 func (s *Server) pushToSession(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: pushToSession")
-	sessionID := getParamStringFromURLAndBody(r, "session")
+	sessionID := s.getStringParams(r, "session")
 	se, err := s.db.GetSessionByID(sessionID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print(err.Error())
 		return
 	}
-	author := getParamStringFromURLAndBody(r, "author")
-	title := getParamStringFromURLAndBody(r, "title")
-	content := getParamStringFromURLAndBody(r, "content")
+	author := s.getStringParams(r, "author")
+	title := s.getStringParams(r, "title")
+	content := s.getStringParams(r, "content")
 	m := Message{Author: author, Title: title, Content: content}
 	session := Session{se}
 	_, err = session.Push(&m)
@@ -164,7 +182,7 @@ func (s *Server) pushToSession(w http.ResponseWriter, r *http.Request) {
 // session={sessionid}
 func (s *Server) checkSession(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: checkSession")
-	sessionID := getParamStringFromURLAndBody(r, "session")
+	sessionID := s.getStringParams(r, "session")
 	se, err := s.db.GetSessionByID(sessionID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -183,7 +201,7 @@ func (s *Server) checkSession(w http.ResponseWriter, r *http.Request) {
 // session={sessionid}
 func (s *Server) hideSession(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Endpoint Hit: hideSession")
-	sessionID := getParamStringFromURLAndBody(r, "session")
+	sessionID := s.getStringParams(r, "session")
 	se, err := s.db.GetSessionByID(sessionID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)

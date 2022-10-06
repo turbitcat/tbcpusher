@@ -17,8 +17,9 @@ type Config struct {
 		Database string `yaml:"database" envconfig:"MONGO_DATABASE"`
 	} `yaml:"mongo"`
 	Api struct {
-		Address string `yaml:"address" envconfig:"API_ADDRESS"`
-		Prefix  string `yaml:"prefix" envconfig:"API_PREFIX"`
+		Address          string `yaml:"address" envconfig:"API_ADDRESS"`
+		Prefix           string `yaml:"prefix" envconfig:"API_PREFIX"`
+		ContentTypeCheck bool   `yaml:"content_type_check" envconfig:"API_CONTENT_TYPE_CHECK"`
 	} `yaml:"api"`
 }
 
@@ -27,6 +28,7 @@ func New() Config {
 	cfg.Mongo.AtlasURI = "mongodb://root:example@127.0.0.1:27017"
 	cfg.Mongo.Database = "tbcpusher"
 	cfg.Api.Address = ":8000"
+	cfg.Api.ContentTypeCheck = true
 	return cfg
 }
 

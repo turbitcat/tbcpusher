@@ -33,5 +33,6 @@ func main() {
 	server := api.NewServer(db)
 	server.SetAddr(cfg.Api.Address)
 	server.SetPrefix(cfg.Api.Prefix)
+	server.SetContenetTypeCheck(cfg.Api.ContentTypeCheck)
 	server.Serve()
 }
