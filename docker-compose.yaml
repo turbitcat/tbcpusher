@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  tpcpusher:
+    build: .
+    container_name: tpcpusher
+    volumes:
+      - ./tbcpusher:/root/.config/tbcpusher
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

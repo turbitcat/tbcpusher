@@ -1,4 +1,4 @@
-module github.com/turbitcat/tpcpusher/plugin/telegram/v2
+module github.com/turbitcat/tbcpusher/plugin/telegram/v2
 
 go 1.19
 

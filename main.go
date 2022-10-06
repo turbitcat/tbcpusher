@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/turbitcat/tpcpusher/v2/api"
-	"github.com/turbitcat/tpcpusher/v2/config"
-	"github.com/turbitcat/tpcpusher/v2/database"
+	"github.com/turbitcat/tbcpusher/v2/api"
+	"github.com/turbitcat/tbcpusher/v2/config"
+	"github.com/turbitcat/tbcpusher/v2/database"
 )
 
 func fileExists(filename string) bool {

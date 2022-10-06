@@ -1,4 +1,4 @@
-module github.com/turbitcat/tpcpusher/v2
+module github.com/turbitcat/tbcpusher/v2
 
 go 1.19
 

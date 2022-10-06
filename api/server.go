@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/turbitcat/tpcpusher/v2/database"
+	"github.com/turbitcat/tbcpusher/v2/database"
 )
 
 // Article ...

@@ -1,0 +1,6 @@
+mongo:
+  uri: mongodb://root:example@127.0.0.1:27017
+  database: tbcpusher
+api:
+  address: :8000
+  prefix: ""
