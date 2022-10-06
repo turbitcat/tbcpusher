@@ -21,11 +21,13 @@ type Session interface {
 	GetGroup() (Group, error)
 	GetPushHook() string
 	SetPushHook(url string) error
+	Hide() error
 }
 
 type Database interface {
 	NewGroup(info string) (string, error)
 	GetGroupByID(id string) (Group, error)
+	GetSessionByID(id string) (Session, error)
 	Close()
 }
 

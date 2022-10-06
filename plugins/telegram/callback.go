@@ -10,13 +10,14 @@ import (
 )
 
 type CallbackServer struct {
-	addr   string
-	bot    *telebot.Bot
-	prefix string
+	addr    string
+	bot     *telebot.Bot
+	prefix  string
+	msgInfo bool
 }
 
 func NewCallbackServer(bot *telebot.Bot) *CallbackServer {
-	return &CallbackServer{bot: bot, addr: ":8001"}
+	return &CallbackServer{bot: bot, addr: ":8001", msgInfo: true}
 }
 
 func (s *CallbackServer) SetAddr(addr string) {
@@ -94,6 +95,9 @@ func (s *CallbackServer) receive(w http.ResponseWriter, r *http.Request) {
 		msg = mT + "\n\n" + mC
 	} else if mA != "" && mC != "" && mT != "" {
 		msg = mA + "\n" + mT + "\n\n" + mC
+	}
+	if s.msgInfo {
+		msg = msg + "\n\nGroup: " + m.GroupID + "\nSession: " + m.SessionID
 	}
 	if _, err := s.bot.Send(&info, msg); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

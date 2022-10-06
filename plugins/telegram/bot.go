@@ -25,7 +25,7 @@ func NewBot(token string) *telebot.Bot {
 	return b
 }
 
-func StartBotClient(b *telebot.Bot, adminIDs string, tbcpusherURL string, callBackURL string) {
+func StartBotClient(b *telebot.Bot, adminIDs string, tbcpusherURL string, callbackURL string, callbackServer *CallbackServer) {
 	adminOnly := b.Group()
 
 	if adminIDs != "" {
@@ -58,14 +58,46 @@ func StartBotClient(b *telebot.Bot, adminIDs string, tbcpusherURL string, callBa
 
 	b.Handle("/join", func(c telebot.Context) error {
 		groupID := c.Message().Payload
-		info := SessionInfo{ChatID: c.Chat().ID}
+		info := SessionInfo{ChatID: c.Chat().ID, SenderID: c.Sender().ID}
 		_info, _ := json.Marshal(info)
-		sid, err := JoinGroup(tbcpusherURL, groupID, callBackURL, string(_info))
+		sid, err := JoinGroup(tbcpusherURL, groupID, callbackURL, string(_info))
 		if err != nil {
-			return c.Send("err: " + err.Error())
+			c.Send("err: " + err.Error())
+			return err
 		} else {
 			return c.Send(fmt.Sprintf("Session id: %v", sid))
 		}
+	})
+
+	b.Handle("/leave", func(c telebot.Context) error {
+		sessionID := c.Message().Payload
+		info, err := CheckSession(tbcpusherURL, sessionID)
+		if err != nil {
+			c.Send("err: " + err.Error())
+			return err
+		}
+		if info.SenderID == c.Sender().ID {
+			if err = HideSession(tbcpusherURL, sessionID); err != nil {
+				c.Send("err: " + err.Error())
+				return err
+			} else {
+				return c.Send("left " + sessionID)
+			}
+		} else {
+			return c.Send("You are not the owner of the session.")
+		}
+	})
+
+	b.Handle("/info", func(c telebot.Context) error {
+		pl := c.Message().Payload
+		if pl == "on" {
+			callbackServer.msgInfo = true
+			return c.Send("Group id and Session id are going to show at the end of a message.")
+		} else if pl == "off" {
+			callbackServer.msgInfo = false
+			return c.Send("Group id and Session id are hide now.")
+		}
+		return c.Send("/info [on|off]")
 	})
 
 	b.Start()

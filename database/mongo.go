@@ -33,6 +33,7 @@ type sessionBson struct {
 	Group primitive.ObjectID `bson:"group,omitempty"`
 	Info  string             `bson:"info,omitempty"`
 	Hook  string             `bson:"hook,omitempty"`
+	Hide  bool               `bson:"hide,omitempty"`
 }
 
 func (s sessionBson) toSession(db *MongoDatabase) session {
@@ -95,6 +96,20 @@ func (db *MongoDatabase) GetGroupByID(id string) (Group, error) {
 	return &group, nil
 }
 
+func (db *MongoDatabase) GetSessionByID(id string) (Session, error) {
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, fmt.Errorf("getSessionByID invalid id \"%v\": %v", id, err)
+	}
+	r := db.sessionCollection.FindOne(db.ctx, bson.D{{"_id", _id}})
+	g := sessionBson{}
+	if err := r.Decode(&g); err != nil {
+		return nil, fmt.Errorf("getSessionByID: %v", err)
+	}
+	session := g.toSession(db)
+	return &session, nil
+}
+
 func (db *MongoDatabase) GetAllGroups() ([]group, error) {
 	cur, err := db.groupCollection.Find(db.ctx, bson.M{})
 	if err != nil {
@@ -144,12 +159,13 @@ func (g *group) GetSessions() ([]Session, error) {
 	if err = cur.All(db.ctx, &l); err != nil {
 		return nil, fmt.Errorf("getSessions All: %v", err)
 	}
+	l = Filter(l, func(s sessionBson) bool { return !s.Hide })
 	f := func(s sessionBson) Session { r := s.toSession(db); return &r }
 	return Map(l, f), nil
 }
 
 func setSomethingById(ctx context.Context, collection *mongo.Collection, id any, key string, val any) error {
-	r, err := collection.UpdateByID(ctx, id, bson.D{{key, val}})
+	r, err := collection.UpdateByID(ctx, id, bson.D{{"$set", bson.D{{key, val}}}})
 	if err != nil {
 		return err
 	}
@@ -200,6 +216,13 @@ func (s *session) GetPushHook() string {
 func (s *session) SetPushHook(url string) error {
 	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "hook", url); err != nil {
 		return fmt.Errorf("session setPushHook: %v", err)
+	}
+	return nil
+}
+
+func (s *session) Hide() error {
+	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "hide", true); err != nil {
+		return fmt.Errorf("session hide: %v", err)
 	}
 	return nil
 }

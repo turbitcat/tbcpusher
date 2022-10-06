@@ -35,5 +35,5 @@ func main() {
 		log.Fatalln("joinpath: " + err.Error())
 	}
 	fmt.Printf("Callbackurl: %v\n", callbackurl)
-	StartBotClient(bot, cfg.TelegramBot.AdminIDs, cfg.TBCPusher.URL, callbackurl)
+	StartBotClient(bot, cfg.TelegramBot.AdminIDs, cfg.TBCPusher.URL, callbackurl, server)
 }
