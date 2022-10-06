@@ -3,7 +3,9 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/turbitcat/tbcpusher/v2/database"
 )
@@ -62,32 +64,55 @@ func (s *Server) SetContenetTypeCheck(b bool) {
 }
 
 func (s *Server) Serve() error {
-	http.HandleFunc(s.prefix+pathCreateGroup, s.createGroup)
-	http.HandleFunc(s.prefix+pathPushToGroup, s.pushToGroup)
-	http.HandleFunc(s.prefix+pathCreateSession, s.createSession)
-	http.HandleFunc(s.prefix+pathPushToSession, s.pushToSession)
-	http.HandleFunc(s.prefix+pathCheckSession, s.checkSession)
-	http.HandleFunc(s.prefix+pathHideSession, s.hideSession)
+	s.HandleFunc(s.prefix+pathCreateGroup, s.createGroup)
+	s.HandleFunc(s.prefix+pathPushToGroup, s.pushToGroup)
+	s.HandleFunc(s.prefix+pathCreateSession, s.createSession)
+	s.HandleFunc(s.prefix+pathPushToSession, s.pushToSession)
+	s.HandleFunc(s.prefix+pathCheckSession, s.checkSession)
+	s.HandleFunc(s.prefix+pathHideSession, s.hideSession)
 	return http.ListenAndServe(s.addr, nil)
 }
 
-func (s *Server) getStringParams(r *http.Request, param string) string {
-	p := r.URL.Query().Get(param)
+type ProcessedRequest struct {
+	*http.Request
+	BodyBytes []byte
+	Params    url.Values
+}
+
+func (s *Server) processR(r *http.Request) (*ProcessedRequest, error) {
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("processR: %v", err)
+	}
+	var pr ProcessedRequest
+	pr.Request = r
+	pr.BodyBytes = b
+	p := r.URL.Query()
 	if !s.checkCT || contentTypeIsJSON(r.Header) {
-		b := make(map[string]string)
-		err := json.NewDecoder(r.Body).Decode(&b)
-		fmt.Println(b)
-		if err == nil && b[param] != "" {
-			p = b[param]
+		if bP, err := parseStringParamsFromJSON(b); err == nil {
+			p = valuesUnion(bP, p)
 		}
 	}
-	return p
+	pr.Params = p
+	return &pr, nil
+}
+
+func (s *Server) HandleFunc(pattern string, handler func(http.ResponseWriter, *ProcessedRequest)) {
+	wrapper := func(w http.ResponseWriter, r *http.Request) {
+		rr, err := s.processR(r)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			print(err.Error())
+		}
+		handler(w, rr)
+	}
+	http.HandleFunc(pattern, wrapper)
 }
 
 // info={}
-func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createGroup(w http.ResponseWriter, r *ProcessedRequest) {
 	fmt.Println("Endpoint Hit: createGroup")
-	info := s.getStringParams(r, "info")
+	info := r.Params.Get("info")
 	id, err := s.db.NewGroup(info)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -99,22 +124,22 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 // group={groupid}&hook={callbackurl}&info={}
-func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) createSession(w http.ResponseWriter, r *ProcessedRequest) {
 	fmt.Println("Endpoint Hit: createSession")
-	groupID := s.getStringParams(r, "group")
+	groupID := r.Params.Get("group")
 	g, err := s.db.GetGroupByID(groupID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print(err.Error())
 		return
 	}
-	hook := s.getStringParams(r, "hook")
+	hook := r.Params.Get("hook")
 	if hook == "" {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print("hook url is empty")
 		return
 	}
-	info := s.getStringParams(r, "info")
+	info := r.Params.Get("info")
 	id, err := g.NewSession(hook, info)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -126,18 +151,18 @@ func (s *Server) createSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // group={groupid}&author={}&title={}&content={}
-func (s *Server) pushToGroup(w http.ResponseWriter, r *http.Request) {
+func (s *Server) pushToGroup(w http.ResponseWriter, r *ProcessedRequest) {
 	fmt.Println("Endpoint Hit: pushToGroup")
-	groupID := s.getStringParams(r, "group")
+	groupID := r.Params.Get("group")
 	g, err := s.db.GetGroupByID(groupID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print(err.Error())
 		return
 	}
-	author := s.getStringParams(r, "author")
-	title := s.getStringParams(r, "title")
-	content := s.getStringParams(r, "content")
+	author := r.Params.Get("author")
+	title := r.Params.Get("title")
+	content := r.Params.Get("content")
 	m := Message{Author: author, Title: title, Content: content}
 	group := Group{g}
 	resps, err := group.Push(&m)
@@ -157,18 +182,18 @@ func (s *Server) pushToGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 // session={sessionid}&author={}&title={}&content={}
-func (s *Server) pushToSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) pushToSession(w http.ResponseWriter, r *ProcessedRequest) {
 	fmt.Println("Endpoint Hit: pushToSession")
-	sessionID := s.getStringParams(r, "session")
+	sessionID := r.Params.Get("session")
 	se, err := s.db.GetSessionByID(sessionID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		print(err.Error())
 		return
 	}
-	author := s.getStringParams(r, "author")
-	title := s.getStringParams(r, "title")
-	content := s.getStringParams(r, "content")
+	author := r.Params.Get("author")
+	title := r.Params.Get("title")
+	content := r.Params.Get("content")
 	m := Message{Author: author, Title: title, Content: content}
 	session := Session{se}
 	_, err = session.Push(&m)
@@ -180,9 +205,9 @@ func (s *Server) pushToSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // session={sessionid}
-func (s *Server) checkSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) checkSession(w http.ResponseWriter, r *ProcessedRequest) {
 	fmt.Println("Endpoint Hit: checkSession")
-	sessionID := s.getStringParams(r, "session")
+	sessionID := r.Params.Get("session")
 	se, err := s.db.GetSessionByID(sessionID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -199,9 +224,9 @@ func (s *Server) checkSession(w http.ResponseWriter, r *http.Request) {
 }
 
 // session={sessionid}
-func (s *Server) hideSession(w http.ResponseWriter, r *http.Request) {
+func (s *Server) hideSession(w http.ResponseWriter, r *ProcessedRequest) {
 	fmt.Println("Endpoint Hit: hideSession")
-	sessionID := s.getStringParams(r, "session")
+	sessionID := r.Params.Get("session")
 	se, err := s.db.GetSessionByID(sessionID)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
