@@ -47,10 +47,7 @@ func (s *Server) SetAddr(addr string) {
 }
 
 func (s *Server) SetPrefix(p string) {
-	if p == "" {
-		return
-	}
-	if p[0] != '/' {
+	if p != "" && p[0] != '/' {
 		p = "/" + p
 	}
 	s.prefix = p

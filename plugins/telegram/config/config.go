@@ -12,21 +12,24 @@ import (
 
 // Config is the configuration of the program.
 type Config struct {
-	Mongo struct {
-		AtlasURI string `yaml:"uri" envconfig:"MONGO_ATLAS_URI"`
-		Database string `yaml:"database" envconfig:"MONGO_DATABASE"`
-	} `yaml:"mongo"`
-	Api struct {
-		Address string `yaml:"address" envconfig:"API_ADDRESS"`
-		Prefix  string `yaml:"prefix" envconfig:"API_PREFIX"`
-	} `yaml:"api"`
+	TelegramBot struct {
+		Token    string `yaml:"token" envconfig:"BOT_TOKEN"`
+		AdminIDs string `yaml:"admin_ids" envconfig:"BOT_ADMINIDS"`
+	} `yaml:"telegram-bot"`
+	TBCPusher struct {
+		URL string `yaml:"url" envconfig:"TBCPUSHER_URL"`
+	} `yaml:"tbcpusher"`
+	Callback struct {
+		Address string `yaml:"address" envconfig:"CALLBACK_ADDRESS"`
+		Prefix  string `yaml:"prefix" envconfig:"CALLBACK_PREFIX"`
+		URLBase string `yaml:"urlbase" envconfig:"CALLBACK_URLBASE"`
+	} `yaml:"callback"`
 }
 
 func New() Config {
 	var cfg Config
-	cfg.Mongo.AtlasURI = "mongodb://root:example@127.0.0.1:27017"
-	cfg.Mongo.Database = "tbcpusher"
-	cfg.Api.Address = ":8000"
+	cfg.TBCPusher.URL = "http://127.0.0.1:8000/"
+	cfg.Callback.Address = ":8001"
 	return cfg
 }
 
@@ -83,5 +86,5 @@ func DefaultPath() string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return filepath.Join(home, ".config", "tbcpusher", "config.yml")
+	return filepath.Join(home, ".config", "tbcpusher-telegram-plugin", "config.yml")
 }

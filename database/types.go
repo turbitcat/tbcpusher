@@ -16,8 +16,9 @@ type Session interface {
 	GetID() string
 	GetInfo() string
 	SetInfo(info string) error
-	GetGroup() string
-	SetGroup(groupID string) error
+	GetGroupID() string
+	SetGroupID(groupID string) error
+	GetGroup() (Group, error)
 	GetPushHook() string
 	SetPushHook(url string) error
 }

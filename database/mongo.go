@@ -174,11 +174,11 @@ func (s *session) SetInfo(info string) error {
 	return nil
 }
 
-func (s *session) GetGroup() string {
+func (s *session) GetGroupID() string {
 	return s.Group.Hex()
 }
 
-func (s *session) SetGroup(groupID string) error {
+func (s *session) SetGroupID(groupID string) error {
 	id, err := primitive.ObjectIDFromHex(groupID)
 	if err != nil {
 		return fmt.Errorf("session setGroup invalid id: %v", err)
@@ -187,6 +187,10 @@ func (s *session) SetGroup(groupID string) error {
 		return fmt.Errorf("session setGroup: %v", err)
 	}
 	return nil
+}
+
+func (s *session) GetGroup() (Group, error) {
+	return s.db.GetGroupByID(string(s.Group.Hex()))
 }
 
 func (s *session) GetPushHook() string {

@@ -15,6 +15,14 @@ type Message struct {
 	Content string
 }
 
+type JSONPush struct {
+	Msg         *Message
+	GroupID     string
+	GroupInfo   string
+	SessionID   string
+	SessionInfo string
+}
+
 type Group struct {
 	database.Group
 }
@@ -25,7 +33,12 @@ type Session struct {
 
 func (s Session) Push(m *Message) (*http.Response, error) {
 	url := s.GetPushHook()
-	json_data, err := json.Marshal(m)
+	data := JSONPush{Msg: m, SessionID: s.GetID(), SessionInfo: s.GetInfo()}
+	if group, err := s.GetGroup(); err == nil {
+		data.GroupID = group.GetID()
+		data.GroupInfo = group.GetID()
+	}
+	json_data, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("session push: %v", err)
 	}
