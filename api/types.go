@@ -7,20 +7,13 @@ import (
 	"net/http"
 
 	"github.com/turbitcat/tbcpusher/v2/database"
+	"github.com/turbitcat/tbcpusher/v2/wsgo"
 )
 
 type Message struct {
 	Author  string
 	Title   string
 	Content string
-}
-
-type JSONPush struct {
-	Msg         *Message
-	GroupID     string
-	GroupInfo   string
-	SessionID   string
-	SessionInfo string
 }
 
 type Group struct {
@@ -31,18 +24,30 @@ type Session struct {
 	database.Session
 }
 
+func (s Session) WsgoH() wsgo.H {
+	return wsgo.H{"id": s.GetID(), "data": s.GetData(), "hook": s.GetPushHook(), "groupID": s.GetGroupID()}
+}
+
+func (s Session) WsgoHWithGroup() wsgo.H {
+	r := s.WsgoH()
+	g, err := s.GetGroup()
+	if err == nil {
+		r["group"] = Group{g}.WsgoH()
+	}
+	return r
+}
+
 func (s Session) Push(m *Message) (*http.Response, error) {
 	url := s.GetPushHook()
-	data := JSONPush{Msg: m, SessionID: s.GetID(), SessionInfo: s.GetInfo()}
-	if group, err := s.GetGroup(); err == nil {
-		data.GroupID = group.GetID()
-		data.GroupInfo = group.GetID()
-	}
+	data := wsgo.H{"session": s.WsgoHWithGroup(), "message": m}
 	json_data, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("session push: %v", err)
 	}
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(json_data))
+	if err != nil {
+		err = fmt.Errorf("session push: %v", err)
+	}
 	return resp, err
 }
 
@@ -50,6 +55,23 @@ type pushResp struct {
 	Session *Session
 	Resp    *http.Response
 	Err     error
+}
+
+func (g Group) WsgoH() wsgo.H {
+	return wsgo.H{"id": g.GetID(), "data": g.GetData()}
+}
+
+func (g Group) WsgoHWithSessions() wsgo.H {
+	r := g.WsgoH()
+	ss := []wsgo.H{}
+	gs, err := g.GetSessions()
+	if err == nil {
+		for _, s := range gs {
+			ss = append(ss, Session{s}.WsgoH())
+		}
+	}
+	r["sessions"] = ss
+	return r
 }
 
 func (g Group) Push(m *Message) ([]pushResp, error) {

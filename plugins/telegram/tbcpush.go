@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/golang/gddo/httputil/header"
+	"github.com/turbitcat/tbcpusher/plugin/telegram/v2/wsgo"
 )
 
 type SessionInfo struct {
@@ -15,29 +18,33 @@ type SessionInfo struct {
 	SenderID int64
 }
 
+func (s *SessionInfo) Recipient() string {
+	return strconv.FormatInt(s.ChatID, 10)
+}
+
 func contentTypeIsJSON(h http.Header) bool {
 	v, _ := header.ParseValueAndParams(h, "Content-Type")
 	return v == "application/json"
 }
 
-func JoinGroup(u string, groupID string, callback string, info string) (string, error) {
+func JoinGroup(u string, groupID string, callback string, data any) (string, error) {
 	u, _ = url.JoinPath(u, "/session/create")
 	ur, err := url.Parse(u)
 	if err != nil {
 		return "", fmt.Errorf("joinGroup parsing url: %v", err)
 	}
-	q := ur.Query()
-	q.Add("group", groupID)
-	q.Add("hook", callback)
-	q.Add("info", info)
-	ur.RawQuery = q.Encode()
-	fmt.Printf("JoinGroup: GET %v\n", ur.String())
-	resp, err := http.Get(ur.String())
+
+	d := wsgo.H{"group": groupID, "hook": callback, "data": data}
+	jsonData, err := json.Marshal(d)
 	if err != nil {
-		return "", fmt.Errorf("joinGroup GET: %v", err)
+		return "", fmt.Errorf("joinGroup marshal: %v", err)
+	}
+	resp, err := http.Post(ur.String(), "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("joinGroup POST: %v", err)
 	}
 	if !contentTypeIsJSON(resp.Header) {
-		b, _ := ioutil.ReadAll(resp.Body)
+		b, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("joinGroup resp not json: %v", string(b))
 	}
 	var rs struct{ Id string }
@@ -67,7 +74,7 @@ func HideSession(u string, sessionID string) error {
 	return nil
 }
 
-func CheckSession(u string, sessionID string) (*SessionInfo, error) {
+func GetSessionInfo(u string, sessionID string) (*SessionInfo, error) {
 	u, _ = url.JoinPath(u, "/session/check")
 	ur, err := url.Parse(u)
 	if err != nil {
@@ -82,16 +89,13 @@ func CheckSession(u string, sessionID string) (*SessionInfo, error) {
 		return nil, fmt.Errorf("checkSession GET: %v", err)
 	}
 	if !contentTypeIsJSON(resp.Header) {
-		b, _ := ioutil.ReadAll(resp.Body)
+		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("checkSession resp not json: %v", string(b))
 	}
-	var rs struct{ SessionInfo string }
+	var rs JSONSession
 	if err := json.NewDecoder(resp.Body).Decode(&rs); err != nil {
 		return nil, fmt.Errorf("checkSession parsing resp: %v", err)
 	}
-	var info SessionInfo
-	if err := json.Unmarshal([]byte(rs.SessionInfo), &info); err != nil {
-		return nil, fmt.Errorf("checkSession parsing session info: %v", err)
-	}
+	info := rs.Data
 	return &info, nil
 }

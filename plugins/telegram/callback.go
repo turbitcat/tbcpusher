@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strconv"
 
+	"github.com/turbitcat/tbcpusher/plugin/telegram/v2/wsgo"
 	"gopkg.in/telebot.v3"
 )
 
@@ -14,10 +12,13 @@ type CallbackServer struct {
 	bot     *telebot.Bot
 	prefix  string
 	msgInfo bool
+	route   *wsgo.ServerMux
 }
 
 func NewCallbackServer(bot *telebot.Bot) *CallbackServer {
-	return &CallbackServer{bot: bot, addr: ":8001", msgInfo: true}
+	r := wsgo.Default()
+	r.Use(wsgo.ParseParamsJSON)
+	return &CallbackServer{bot: bot, addr: ":8001", msgInfo: true, route: r}
 }
 
 func (s *CallbackServer) SetAddr(addr string) {
@@ -34,51 +35,38 @@ func (s *CallbackServer) SetPrefix(p string) {
 const pathPush = "/push"
 
 func (s *CallbackServer) Serve() error {
-	http.HandleFunc(s.prefix+pathPush, s.receive)
-	return http.ListenAndServe(s.addr, nil)
+	s.route.POST(s.prefix+pathPush, s.receive)
+	return s.route.Run(s.addr)
 }
 
 func (s *CallbackServer) CallbackPushURL() string {
 	return s.prefix + pathPush
 }
 
-type TBCPusherMessage struct {
-	Author  string
-	Title   string
-	Content string
-}
-
-type JSONTBCPush struct {
-	Msg         *TBCPusherMessage
-	GroupID     string
-	GroupInfo   string
-	SessionID   string
-	SessionInfo string
-}
-
-func (s *SessionInfo) Recipient() string {
-	return strconv.FormatInt(s.ChatID, 10)
-}
-
-func (s *CallbackServer) receive(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Endpoint Hit: receive")
+func (s *CallbackServer) receive(c *wsgo.Context) {
 	var m JSONTBCPush
-	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Println("bad request", err)
+	if err := c.BindJSON(&m); err != nil {
+		c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+		c.Log("Invalid body: %v\n", err)
 		return
 	}
-	jsonInfo := []byte(m.SessionInfo)
-	var info SessionInfo
-	if err := json.Unmarshal(jsonInfo, &info); err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		fmt.Println("error parsing session info", err)
+	info := m.Session.Data
+	msg := msgString(m.Message.Title, m.Message.Content, m.Message.Author)
+	if s.msgInfo {
+		msg = msg + "\n\nGroup: " + m.Session.GroupID + "\nSession: " + m.Session.Id
+	}
+	if _, err := s.bot.Send(&info, msg); err != nil {
+		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		c.Log("Error while send to tgbot: %v\n", err)
 		return
 	}
-	var msg string
-	mA := m.Msg.Author
-	mC := m.Msg.Content
-	mT := m.Msg.Title
+}
+
+func msgString(title string, content string, author string) string {
+	msg := ""
+	mA := author
+	mC := content
+	mT := title
 	if mA == "" && mC == "" && mT == "" {
 		msg = "Received an empty push."
 	} else if mA != "" && mC == "" && mT == "" {
@@ -96,12 +84,5 @@ func (s *CallbackServer) receive(w http.ResponseWriter, r *http.Request) {
 	} else if mA != "" && mC != "" && mT != "" {
 		msg = mA + "\n" + mT + "\n\n" + mC
 	}
-	if s.msgInfo {
-		msg = msg + "\n\nGroup: " + m.GroupID + "\nSession: " + m.SessionID
-	}
-	if _, err := s.bot.Send(&info, msg); err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		fmt.Println("error sending message to telegram", err)
-		return
-	}
+	return msg
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -59,8 +58,7 @@ func StartBotClient(b *telebot.Bot, adminIDs string, tbcpusherURL string, callba
 	b.Handle("/join", func(c telebot.Context) error {
 		groupID := c.Message().Payload
 		info := SessionInfo{ChatID: c.Chat().ID, SenderID: c.Sender().ID}
-		_info, _ := json.Marshal(info)
-		sid, err := JoinGroup(tbcpusherURL, groupID, callbackURL, string(_info))
+		sid, err := JoinGroup(tbcpusherURL, groupID, callbackURL, info)
 		if err != nil {
 			c.Send("err: " + err.Error())
 			return err
@@ -71,7 +69,7 @@ func StartBotClient(b *telebot.Bot, adminIDs string, tbcpusherURL string, callba
 
 	b.Handle("/leave", func(c telebot.Context) error {
 		sessionID := c.Message().Payload
-		info, err := CheckSession(tbcpusherURL, sessionID)
+		info, err := GetSessionInfo(tbcpusherURL, sessionID)
 		if err != nil {
 			c.Send("err: " + err.Error())
 			return err

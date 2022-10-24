@@ -6,16 +6,16 @@ import (
 
 type Group interface {
 	GetID() string
-	GetInfo() string
-	SetInfo(info string) error
-	NewSession(hook string, info string) (string, error)
+	GetData() any
+	SetData(data any) error
+	NewSession(hook string, data any) (string, error)
 	GetSessions() ([]Session, error)
 }
 
 type Session interface {
 	GetID() string
-	GetInfo() string
-	SetInfo(info string) error
+	GetData() any
+	SetData(data any) error
 	GetGroupID() string
 	SetGroupID(groupID string) error
 	GetGroup() (Group, error)
@@ -25,22 +25,23 @@ type Session interface {
 }
 
 type Database interface {
-	NewGroup(info string) (string, error)
+	NewGroup(data any) (string, error)
 	GetGroupByID(id string) (Group, error)
 	GetSessionByID(id string) (Session, error)
+	GetAllGroups() ([]Group, error)
 	Close()
 }
 
 type group struct {
 	ID   primitive.ObjectID
-	Info string
+	Data any
 	db   *MongoDatabase
 }
 
 type session struct {
 	ID       primitive.ObjectID
 	Group    primitive.ObjectID
-	Info     string
+	Data     any
 	PushHook string
 	db       *MongoDatabase
 }

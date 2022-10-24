@@ -8,6 +8,16 @@ import (
 	"github.com/golang/gddo/httputil/header"
 )
 
+func contains[T any](m map[string]T, keys ...string) bool {
+	for _, k := range keys {
+		_, ok := m[k]
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func contentTypeIsJSON(h http.Header) bool {
 	v, _ := header.ParseValueAndParams(h, "Content-Type")
 	return v == "application/json"

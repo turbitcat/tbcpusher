@@ -21,23 +21,23 @@ type MongoDatabase struct {
 
 type groupBson struct {
 	ID   primitive.ObjectID `bson:"_id,omitempty"`
-	Info string             `bson:"info,omitempty"`
+	Data bson.M             `bson:"data,omitempty"`
 }
 
 func (g groupBson) toGroup(db *MongoDatabase) group {
-	return group{ID: g.ID, Info: g.Info, db: db}
+	return group{ID: g.ID, Data: g.Data["Value"], db: db}
 }
 
 type sessionBson struct {
 	ID    primitive.ObjectID `bson:"_id,omitempty"`
 	Group primitive.ObjectID `bson:"group,omitempty"`
-	Info  string             `bson:"info,omitempty"`
+	Data  bson.M             `bson:"data,omitempty"`
 	Hook  string             `bson:"hook,omitempty"`
 	Hide  bool               `bson:"hide,omitempty"`
 }
 
 func (s sessionBson) toSession(db *MongoDatabase) session {
-	return session{ID: s.ID, Group: s.Group, Info: s.Info, db: db, PushHook: s.Hook}
+	return session{ID: s.ID, Group: s.Group, Data: s.Data["Value"], db: db, PushHook: s.Hook}
 }
 
 func NewMongo(atlasURI string, database string) (Database, error) {
@@ -72,8 +72,8 @@ func (db *MongoDatabase) Close() {
 	db.client.Disconnect(db.ctx)
 }
 
-func (db *MongoDatabase) NewGroup(info string) (string, error) {
-	g := groupBson{Info: info}
+func (db *MongoDatabase) NewGroup(data any) (string, error) {
+	g := groupBson{Data: bson.M{"Value": data}}
 	r, err := db.groupCollection.InsertOne(db.ctx, g)
 	if err != nil {
 		return "", fmt.Errorf("newGroup: %v", err)
@@ -110,7 +110,7 @@ func (db *MongoDatabase) GetSessionByID(id string) (Session, error) {
 	return &session, nil
 }
 
-func (db *MongoDatabase) GetAllGroups() ([]group, error) {
+func (db *MongoDatabase) GetAllGroups() ([]Group, error) {
 	cur, err := db.groupCollection.Find(db.ctx, bson.M{})
 	if err != nil {
 		return nil, fmt.Errorf("getAllGroup Find: %v", err)
@@ -119,7 +119,7 @@ func (db *MongoDatabase) GetAllGroups() ([]group, error) {
 	if err = cur.All(db.ctx, &l); err != nil {
 		return nil, fmt.Errorf("getAllgroup All: %v", err)
 	}
-	f := func(g groupBson) group { return g.toGroup(db) }
+	f := func(g groupBson) Group { t := g.toGroup(db); return &t }
 	return Map(l, f), nil
 }
 
@@ -127,20 +127,20 @@ func (g *group) GetID() string {
 	return g.ID.Hex()
 }
 
-func (g *group) GetInfo() string {
-	return g.Info
+func (g *group) GetData() any {
+	return g.Data
 }
 
-func (g *group) SetInfo(info string) error {
-	if err := setSomethingById(g.db.ctx, g.db.groupCollection, g.ID, "info", info); err != nil {
-		return fmt.Errorf("group setInfo: %v", err)
+func (g *group) SetData(data any) error {
+	if err := setSomethingById(g.db.ctx, g.db.groupCollection, g.ID, "data", data); err != nil {
+		return fmt.Errorf("group setData: %v", err)
 	}
 	return nil
 }
 
-func (g *group) NewSession(hook string, info string) (string, error) {
+func (g *group) NewSession(hook string, data any) (string, error) {
 	db := g.db
-	s := sessionBson{Group: g.ID, Hook: hook, Info: info}
+	s := sessionBson{Group: g.ID, Hook: hook, Data: bson.M{"Value": data}}
 	r, err := db.sessionCollection.InsertOne(db.ctx, s)
 	if err != nil {
 		return "", fmt.Errorf("newSession: %v", err)
@@ -151,7 +151,7 @@ func (g *group) NewSession(hook string, info string) (string, error) {
 
 func (g *group) GetSessions() ([]Session, error) {
 	db := g.db
-	cur, err := g.db.sessionCollection.Find(db.ctx, bson.D{{"group", g.ID}})
+	cur, err := g.db.sessionCollection.Find(db.ctx, bson.M{"group": g.ID})
 	if err != nil {
 		return nil, fmt.Errorf("getSessions Find: %v", err)
 	}
@@ -179,13 +179,13 @@ func (s *session) GetID() string {
 	return s.ID.Hex()
 }
 
-func (s *session) GetInfo() string {
-	return s.Info
+func (s *session) GetData() any {
+	return s.Data
 }
 
-func (s *session) SetInfo(info string) error {
-	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "info", info); err != nil {
-		return fmt.Errorf("session setInfo: %v", err)
+func (s *session) SetData(data any) error {
+	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "data", data); err != nil {
+		return fmt.Errorf("session setData: %v", err)
 	}
 	return nil
 }
