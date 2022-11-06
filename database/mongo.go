@@ -123,6 +123,16 @@ func (db *MongoDatabase) GetAllGroups() ([]Group, error) {
 	return Map(l, f), nil
 }
 
+func (db *MongoDatabase) NewSession(hook string, data any) (string, error) {
+	s := sessionBson{Hook: hook, Data: bson.M{"Value": data}}
+	r, err := db.sessionCollection.InsertOne(db.ctx, s)
+	if err != nil {
+		return "", fmt.Errorf("newSession: %v", err)
+	}
+	id := (r.InsertedID).(primitive.ObjectID)
+	return id.Hex(), nil
+}
+
 func (g *group) GetID() string {
 	return g.ID.Hex()
 }

@@ -2,8 +2,11 @@ package api
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/turbitcat/tbcpusher/v2/database"
+	"github.com/turbitcat/tbcpusher/v2/scheduler"
 	"github.com/turbitcat/tbcpusher/v2/wsgo"
 )
 
@@ -28,16 +31,18 @@ var Articles []Article = []Article{
 }
 
 type Server struct {
-	db     database.Database
-	addr   string
-	prefix string
-	router *wsgo.ServerMux
+	db        database.Database
+	addr      string
+	prefix    string
+	router    *wsgo.ServerMux
+	scheduler *scheduler.Scheduler
 }
 
 func NewServer(db database.Database) Server {
 	s := wsgo.Default()
 	s.Use(wsgo.ParseParamsJSON)
-	return Server{db: db, addr: ":8000", router: s}
+	sc := scheduler.NewDefult()
+	return Server{db: db, addr: ":8000", router: s, scheduler: sc}
 }
 
 func (s *Server) SetAddr(addr string) {
@@ -80,19 +85,29 @@ func (s *Server) Serve() error {
 	})
 	// create a session
 	// group={groupid}&hook={callbackurl}&data={}
-	r.Handle(s.prefix+"/session/create", requireString("group", "hook"), func(c *wsgo.Context) {
+	r.Handle(s.prefix+"/session/create", requireString("hook"), func(c *wsgo.Context) {
 		ps := c.StringParams()
 		gid, hook := ps["group"], ps["hook"]
 		data, _ := c.Param("data")
-		g, err := s.db.GetGroupByID(gid)
-		if err != nil {
-			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
-			return
-		}
-		sid, err := g.NewSession(hook, data)
-		if err != nil {
-			c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
-			return
+		var sid string
+		if gid != "" {
+			g, err := s.db.GetGroupByID(gid)
+			if err != nil {
+				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+				return
+			}
+			sid, err = g.NewSession(hook, data)
+			if err != nil {
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+				return
+			}
+		} else {
+			var err error
+			sid, err = s.db.NewSession(hook, data)
+			if err != nil {
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+				return
+			}
 		}
 		c.Json(http.StatusOK, wsgo.H{"id": sid})
 	})
@@ -108,20 +123,30 @@ func (s *Server) Serve() error {
 		ps := c.StringParams()
 		author, title, content := ps["author"], ps["title"], ps["content"]
 		m := Message{author, title, content}
-		resps, err := Group{g}.Push(&m)
-		if err != nil {
-			c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
-			return
-		}
-		succ := []string{}
-		for _, resp := range resps {
-			if resp.Err == nil {
-				succ = append(succ, resp.Session.GetID())
-			} else {
-				c.LogIfLogging("push to group session %v: %v", resp.Session.GetID(), resp.Err)
+		if when, ok := c.StringParam("when"); ok {
+			when_int, err := strconv.ParseInt(when, 10, 64)
+			if err != nil {
+				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+				return
 			}
+			ti := time.Unix(when_int, 0)
+			Group{g}.PushWhen(&m, ti, s.scheduler)
+		} else {
+			resps, err := Group{g}.Push(&m)
+			if err != nil {
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+				return
+			}
+			succ := []string{}
+			for _, resp := range resps {
+				if resp.Err == nil {
+					succ = append(succ, resp.Session.GetID())
+				} else {
+					c.LogIfLogging("push to group session %v: %v", resp.Session.GetID(), resp.Err)
+				}
+			}
+			c.Json(http.StatusOK, succ)
 		}
-		c.Json(http.StatusOK, succ)
 	})
 	// push to session
 	// session={sessionid}&author={}&title={}&content={}
@@ -135,10 +160,20 @@ func (s *Server) Serve() error {
 		ps := c.StringParams()
 		author, title, content := ps["author"], ps["title"], ps["content"]
 		m := Message{author, title, content}
-		_, err = Session{session}.Push(&m)
-		if err != nil {
-			c.String(http.StatusNotAcceptable, http.StatusText(http.StatusNotAcceptable))
-			return
+		if when, ok := c.StringParam("when"); ok {
+			when_int, err := strconv.ParseInt(when, 10, 64)
+			if err != nil {
+				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+				return
+			}
+			ti := time.Unix(0, when_int*1000000)
+			Session{session}.PushWhen(&m, ti, s.scheduler)
+		} else {
+			_, err = Session{session}.Push(&m)
+			if err != nil {
+				c.String(http.StatusNotAcceptable, http.StatusText(http.StatusNotAcceptable))
+				return
+			}
 		}
 	})
 	// get session
@@ -167,5 +202,6 @@ func (s *Server) Serve() error {
 			return
 		}
 	})
+	s.scheduler.Run()
 	return r.Run(s.addr)
 }

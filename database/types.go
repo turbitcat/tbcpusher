@@ -26,6 +26,7 @@ type Session interface {
 
 type Database interface {
 	NewGroup(data any) (string, error)
+	NewSession(hook string, data any) (string, error)
 	GetGroupByID(id string) (Group, error)
 	GetSessionByID(id string) (Session, error)
 	GetAllGroups() ([]Group, error)
