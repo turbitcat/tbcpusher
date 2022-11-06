@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/turbitcat/tbcpusher/v2/database"
+	"github.com/turbitcat/tbcpusher/v2/scheduler"
 	"github.com/turbitcat/tbcpusher/v2/wsgo"
 )
 
@@ -85,4 +87,28 @@ func (g Group) Push(m *Message) ([]pushResp, error) {
 		l = append(l, pushResp{&Session{s}, res, err})
 	}
 	return l, nil
+}
+
+func (s Session) PushWhen(m *Message, t time.Time, sc *scheduler.Scheduler) error {
+	url := s.GetPushHook()
+	data := wsgo.H{"session": s.WsgoHWithGroup(), "message": m}
+	json_data, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("session pushWhen: %v", err)
+	}
+	f := func() { http.Post(url, "application/json", bytes.NewBuffer(json_data)) }
+	ti := &scheduler.OneTimeSchedule{T: t}
+	sc.AddFunc(f, ti)
+	return nil
+}
+
+func (g Group) PushWhen(m *Message, t time.Time, sc *scheduler.Scheduler) error {
+	sessions, err := g.GetSessions()
+	if err != nil {
+		return fmt.Errorf("group pushWhen: %v", err)
+	}
+	for _, s := range sessions {
+		Session{s}.PushWhen(m, t, sc)
+	}
+	return nil
 }
