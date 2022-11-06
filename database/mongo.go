@@ -15,6 +15,7 @@ type MongoDatabase struct {
 	tbcPushDatabase   *mongo.Database
 	groupCollection   *mongo.Collection
 	sessionCollection *mongo.Collection
+	stateCollection   *mongo.Collection
 	ctx               context.Context
 	client            *mongo.Client
 }
@@ -58,12 +59,14 @@ func NewMongo(atlasURI string, database string) (Database, error) {
 	d := client.Database(database)
 	gr := d.Collection("group")
 	se := d.Collection("session")
+	st := d.Collection("state")
 	db := MongoDatabase{
 		ctx:               ctx,
 		tbcPushDatabase:   d,
 		groupCollection:   gr,
 		sessionCollection: se,
 		client:            client,
+		stateCollection:   st,
 	}
 	return &db, nil
 }
@@ -132,6 +135,12 @@ func (db *MongoDatabase) NewSession(hook string, data any) (string, error) {
 	id := (r.InsertedID).(primitive.ObjectID)
 	return id.Hex(), nil
 }
+
+func (db *MongoDatabase) SaveState(name string, data any) error {
+	db.stateCollection.FindOneAndUpdate(db.ctx, bson.M{"name": name})
+}
+
+func (db *MongoDatabase) BindState(name string, data any) error
 
 func (g *group) GetID() string {
 	return g.ID.Hex()

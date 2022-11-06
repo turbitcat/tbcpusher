@@ -30,6 +30,8 @@ type Database interface {
 	GetGroupByID(id string) (Group, error)
 	GetSessionByID(id string) (Session, error)
 	GetAllGroups() ([]Group, error)
+	SaveState(name string, data any) error
+	BindState(name string, data any) error
 	Close()
 }
 
