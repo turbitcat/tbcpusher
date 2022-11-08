@@ -96,9 +96,9 @@ func (s Session) PushWhen(m *Message, t time.Time, sc *scheduler.Scheduler) erro
 	if err != nil {
 		return fmt.Errorf("session pushWhen: %v", err)
 	}
-	f := func() { http.Post(url, "application/json", bytes.NewBuffer(json_data)) }
-	ti := &scheduler.OneTimeSchedule{T: t}
-	sc.AddFunc(f, ti)
+	job := NewPushToSessionJob(url, json_data)
+	ti := NewOneTimeSchedule(t)
+	sc.AddJob(job, ti)
 	return nil
 }
 

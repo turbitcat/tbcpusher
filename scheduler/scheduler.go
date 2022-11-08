@@ -5,31 +5,34 @@ import (
 	"time"
 )
 
-type EntryID int
+type Entry interface {
+	Schedule() Schedule
+	Next() time.Time
+	SetNext(time.Time)
+	Job() Job
+}
 
-type Entry struct {
-	ID       EntryID
-	Schedule Schedule
-	Next     time.Time
-	Prev     time.Time
-	Job      Job
+type EntryList interface {
+	NewEntry(Job, Schedule) Entry
+	Len() int
+	All() []Entry
+	Add(Entry)
+	Remove(Entry)
 }
 
 type Scheduler struct {
-	entries   []*Entry
-	add       chan *Entry
-	remove    chan EntryID
+	entries   EntryList
+	add       chan Entry
+	remove    chan Entry
 	stop      chan struct{}
-	snap      chan chan []Entry
 	running   bool
 	runningMu sync.Mutex
-	nextID    EntryID
 	location  *time.Location
 	logger    Logger
 }
 
 func newScheduler() *Scheduler {
-	return &Scheduler{add: make(chan *Entry), remove: make(chan EntryID), stop: make(chan struct{}), snap: make(chan chan []Entry)}
+	return &Scheduler{add: make(chan Entry), remove: make(chan Entry), stop: make(chan struct{})}
 }
 
 func NewDefult() *Scheduler {
@@ -39,64 +42,53 @@ func NewDefult() *Scheduler {
 	return s
 }
 
-func (s *Scheduler) AddJob(job Job, schedule Schedule) EntryID {
+func (s *Scheduler) SetLogger(l Logger) {
+	if s.running {
+		panic("cannot set logger while running")
+	}
+	s.logger = l
+}
+
+func (s *Scheduler) SetEntries(entries EntryList) {
 	s.runningMu.Lock()
 	defer s.runningMu.Unlock()
-	entry := &Entry{
-		ID:       s.nextID,
-		Schedule: schedule,
-		Job:      job,
+	if s.running {
+		panic("cannot set entries while running")
 	}
-	s.nextID++
+	s.entries = entries
+}
+
+func (s *Scheduler) AddJob(job Job, schedule Schedule) {
+	s.runningMu.Lock()
+	defer s.runningMu.Unlock()
+	entry := s.entries.NewEntry(job, schedule)
 	if s.running {
 		s.add <- entry
 	} else {
-		s.entries = append(s.entries, entry)
+		s.addEntry(entry)
 	}
-	return entry.ID
 }
 
-func (s *Scheduler) AddFunc(f func(), schedule Schedule) EntryID {
-	return s.AddJob(FuncJob(f), schedule)
+func (s *Scheduler) AddFunc(f func(), schedule Schedule) {
+	s.AddJob(FuncJob(f), schedule)
 }
 
-func (s *Scheduler) GetEntries() []Entry {
+func (s *Scheduler) Remove(entry Entry) {
 	s.runningMu.Lock()
 	defer s.runningMu.Unlock()
 	if s.running {
-		c := make(chan []Entry, 1)
-		s.snap <- c
-		return <-c
-	}
-	return s.getEntries()
-}
-
-func (s *Scheduler) getEntries() []Entry {
-	entries := make([]Entry, len(s.entries))
-	for i, v := range s.entries {
-		entries[i] = *v
-	}
-	return entries
-}
-
-func (s *Scheduler) Remove(id EntryID) {
-	s.runningMu.Lock()
-	defer s.runningMu.Unlock()
-	if s.running {
-		s.remove <- id
+		s.remove <- entry
 	} else {
-		s.removeEntry(id)
+		s.removeEntry(entry)
 	}
 }
 
-func (s *Scheduler) removeEntry(id EntryID) {
-	entries := []*Entry{}
-	for _, v := range s.entries {
-		if v.ID != id {
-			entries = append(entries, v)
-		}
-	}
-	s.entries = entries
+func (s *Scheduler) removeEntry(entry Entry) {
+	s.entries.Remove(entry)
+}
+
+func (s *Scheduler) addEntry(entry Entry) {
+	s.entries.Add(entry)
 }
 
 func (s *Scheduler) now() time.Time {
@@ -104,24 +96,18 @@ func (s *Scheduler) now() time.Time {
 }
 
 func (s *Scheduler) updateEntries(now time.Time) {
-	entries := []*Entry{}
-	for _, v := range s.entries {
-		v.Next = v.Schedule.Next(now)
-		if !v.Next.IsZero() {
-			entries = append(entries, v)
-		}
-	}
-	s.entries = entries
+
 }
 
 func (s *Scheduler) next(now time.Time) time.Time {
 	t := time.Time{}
-	for _, v := range s.entries {
-		if v.Next.IsZero() {
+	for _, v := range s.entries.All() {
+		next := v.Next()
+		if next.IsZero() {
 			continue
 		}
-		if t.IsZero() || v.Next.Before(t) {
-			t = v.Next
+		if t.IsZero() || next.Before(t) {
+			t = next
 		}
 	}
 	return t
@@ -156,34 +142,32 @@ func (s *Scheduler) run() {
 			case now = <-timer.C:
 				now = now.In(s.location)
 				s.logger.Info("wake", "now", now)
-				for _, v := range s.entries {
-					if !v.Next.After(now) {
-						s.startJob(v.Job)
-						v.Prev = v.Next
-						v.Next = v.Schedule.Next(now)
-						if v.Next.IsZero() {
-							s.removeEntry(v.ID)
+				for _, v := range s.entries.All() {
+					next := v.Next()
+					if !next.After(now) {
+						startJob(v)
+						n := v.Schedule().Next(now)
+						v.SetNext(n)
+						if n.IsZero() {
+							s.removeEntry(v)
 						}
-						s.logger.Info("jobRunning", "id", v.ID, "now", now, "next", v.Next)
+						s.logger.Info("jobRunning", "job", v.Job(), "now", now, "next", n)
 					}
 				}
 			case newEntry := <-s.add:
 				timer.Stop()
 				now = s.now()
-				newEntry.Next = newEntry.Schedule.Next(now)
-				if !newEntry.Next.IsZero() {
-					s.entries = append(s.entries, newEntry)
-					s.logger.Info("jobAdded", "id", newEntry.ID)
+				n := newEntry.Schedule().Next(now)
+				newEntry.SetNext(n)
+				if !n.IsZero() {
+					s.addEntry(newEntry)
+					s.logger.Info("jobAdded", "now", now, "next", n)
 				}
 			case id := <-s.remove:
 				timer.Stop()
 				now = s.now()
 				s.removeEntry(id)
 				s.logger.Info("jobRemoved", "id", id)
-			case c := <-s.snap:
-				c <- s.getEntries()
-				s.logger.Info("snap")
-				continue
 			case <-s.stop:
 				timer.Stop()
 				s.logger.Info("stop")
@@ -194,8 +178,8 @@ func (s *Scheduler) run() {
 	}
 }
 
-func (s *Scheduler) startJob(job Job) {
+func startJob(entry Entry) {
 	go func() {
-		job.Run()
+		entry.Job().Run()
 	}()
 }
