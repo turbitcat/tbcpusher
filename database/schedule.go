@@ -228,9 +228,13 @@ func (l *EntryList) All() []scheduler.Entry {
 }
 
 func (l *EntryList) Add(e scheduler.Entry) {
-	e.(Entry).Save()
+	if e.(Entry).Save() != nil {
+		fmt.Printf("error saving entry: %v", e)
+	}
 }
 
 func (l *EntryList) Remove(e scheduler.Entry) {
-	e.(Entry).Delete()
+	if e.(Entry).Delete() != nil {
+		fmt.Printf("error deleting entry: %v\n", e)
+	}
 }
