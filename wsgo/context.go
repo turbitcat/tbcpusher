@@ -208,6 +208,19 @@ func (c *Context) Json(code int, data any) {
 	c.LogIfLogging("Json [%d]: %v", code, data)
 }
 
+func (c *Context) FormatedJson(code int, data any) {
+	c.w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	c.w.WriteHeader(code)
+	b, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		c.w.WriteHeader(http.StatusInternalServerError)
+		c.Log("FormatedJson [%d]: %v", http.StatusInternalServerError, err)
+		return
+	}
+	c.w.Write(b)
+	c.LogIfLogging("FormatedJson [%d]: %v", code, data)
+}
+
 func (c *Context) Stream(code int, data []byte) {
 	c.w.Header().Set("Content-Type", "application/octet-stream")
 	c.w.WriteHeader(code)
