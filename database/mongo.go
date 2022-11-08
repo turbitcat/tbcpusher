@@ -12,33 +12,13 @@ import (
 )
 
 type MongoDatabase struct {
-	tbcPushDatabase   *mongo.Database
-	groupCollection   *mongo.Collection
-	sessionCollection *mongo.Collection
-	stateCollection   *mongo.Collection
-	ctx               context.Context
-	client            *mongo.Client
-}
-
-type groupBson struct {
-	ID   primitive.ObjectID `bson:"_id,omitempty"`
-	Data bson.M             `bson:"data,omitempty"`
-}
-
-func (g groupBson) toGroup(db *MongoDatabase) group {
-	return group{ID: g.ID, Data: g.Data["Value"], db: db}
-}
-
-type sessionBson struct {
-	ID    primitive.ObjectID `bson:"_id,omitempty"`
-	Group primitive.ObjectID `bson:"group,omitempty"`
-	Data  bson.M             `bson:"data,omitempty"`
-	Hook  string             `bson:"hook,omitempty"`
-	Hide  bool               `bson:"hide,omitempty"`
-}
-
-func (s sessionBson) toSession(db *MongoDatabase) session {
-	return session{ID: s.ID, Group: s.Group, Data: s.Data["Value"], db: db, PushHook: s.Hook}
+	tbcPushDatabase    *mongo.Database
+	groupCollection    *mongo.Collection
+	sessionCollection  *mongo.Collection
+	stateCollection    *mongo.Collection
+	scheduleCollection *mongo.Collection
+	ctx                context.Context
+	client             *mongo.Client
 }
 
 func NewMongo(atlasURI string, database string) (Database, error) {
@@ -59,14 +39,14 @@ func NewMongo(atlasURI string, database string) (Database, error) {
 	d := client.Database(database)
 	gr := d.Collection("group")
 	se := d.Collection("session")
-	st := d.Collection("state")
+	sc := d.Collection("schedule")
 	db := MongoDatabase{
-		ctx:               ctx,
-		tbcPushDatabase:   d,
-		groupCollection:   gr,
-		sessionCollection: se,
-		client:            client,
-		stateCollection:   st,
+		ctx:                ctx,
+		tbcPushDatabase:    d,
+		groupCollection:    gr,
+		sessionCollection:  se,
+		scheduleCollection: sc,
+		client:             client,
 	}
 	return &db, nil
 }
@@ -134,114 +114,4 @@ func (db *MongoDatabase) NewSession(hook string, data any) (string, error) {
 	}
 	id := (r.InsertedID).(primitive.ObjectID)
 	return id.Hex(), nil
-}
-
-func (db *MongoDatabase) SaveState(name string, data any) error {
-	db.stateCollection.FindOneAndUpdate(db.ctx, bson.M{"name": name})
-}
-
-func (db *MongoDatabase) BindState(name string, data any) error
-
-func (g *group) GetID() string {
-	return g.ID.Hex()
-}
-
-func (g *group) GetData() any {
-	return g.Data
-}
-
-func (g *group) SetData(data any) error {
-	if err := setSomethingById(g.db.ctx, g.db.groupCollection, g.ID, "data", data); err != nil {
-		return fmt.Errorf("group setData: %v", err)
-	}
-	return nil
-}
-
-func (g *group) NewSession(hook string, data any) (string, error) {
-	db := g.db
-	s := sessionBson{Group: g.ID, Hook: hook, Data: bson.M{"Value": data}}
-	r, err := db.sessionCollection.InsertOne(db.ctx, s)
-	if err != nil {
-		return "", fmt.Errorf("newSession: %v", err)
-	}
-	id := (r.InsertedID).(primitive.ObjectID)
-	return id.Hex(), nil
-}
-
-func (g *group) GetSessions() ([]Session, error) {
-	db := g.db
-	cur, err := g.db.sessionCollection.Find(db.ctx, bson.M{"group": g.ID})
-	if err != nil {
-		return nil, fmt.Errorf("getSessions Find: %v", err)
-	}
-	var l []sessionBson
-	if err = cur.All(db.ctx, &l); err != nil {
-		return nil, fmt.Errorf("getSessions All: %v", err)
-	}
-	l = Filter(l, func(s sessionBson) bool { return !s.Hide })
-	f := func(s sessionBson) Session { r := s.toSession(db); return &r }
-	return Map(l, f), nil
-}
-
-func setSomethingById(ctx context.Context, collection *mongo.Collection, id any, key string, val any) error {
-	r, err := collection.UpdateByID(ctx, id, bson.D{{"$set", bson.D{{key, val}}}})
-	if err != nil {
-		return err
-	}
-	if r.MatchedCount != 1 {
-		return fmt.Errorf("matched count is %v", r.MatchedCount)
-	}
-	return nil
-}
-
-func (s *session) GetID() string {
-	return s.ID.Hex()
-}
-
-func (s *session) GetData() any {
-	return s.Data
-}
-
-func (s *session) SetData(data any) error {
-	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "data", data); err != nil {
-		return fmt.Errorf("session setData: %v", err)
-	}
-	return nil
-}
-
-func (s *session) GetGroupID() string {
-	return s.Group.Hex()
-}
-
-func (s *session) SetGroupID(groupID string) error {
-	id, err := primitive.ObjectIDFromHex(groupID)
-	if err != nil {
-		return fmt.Errorf("session setGroup invalid id: %v", err)
-	}
-	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "group", id); err != nil {
-		return fmt.Errorf("session setGroup: %v", err)
-	}
-	return nil
-}
-
-func (s *session) GetGroup() (Group, error) {
-	return s.db.GetGroupByID(string(s.Group.Hex()))
-}
-
-func (s *session) GetPushHook() string {
-	return s.PushHook
-}
-
-func (s *session) SetPushHook(url string) error {
-	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "hook", url); err != nil {
-		return fmt.Errorf("session setPushHook: %v", err)
-	}
-	return nil
-}
-
-func (s *session) Hide() error {
-	if err := setSomethingById(s.db.ctx, s.db.sessionCollection, s.ID, "hide", true); err != nil {
-		return fmt.Errorf("session hide: %v", err)
-	}
-	return nil
 }

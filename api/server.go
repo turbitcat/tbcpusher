@@ -42,6 +42,8 @@ func NewServer(db database.Database) Server {
 	s := wsgo.Default()
 	s.Use(wsgo.ParseParamsJSON)
 	sc := scheduler.NewDefult()
+	e := database.SetUpScheduler(db, sc, ScheduleGetter, JobGetter)
+	sc.SetLogger(NewSchedulerLogger(db, e))
 	return Server{db: db, addr: ":8000", router: s, scheduler: sc}
 }
 
@@ -129,7 +131,7 @@ func (s *Server) Serve() error {
 				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
 				return
 			}
-			ti := time.Unix(when_int, 0)
+			ti := time.Unix(0, when_int*1000000)
 			Group{g}.PushWhen(&m, ti, s.scheduler)
 		} else {
 			resps, err := Group{g}.Push(&m)

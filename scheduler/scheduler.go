@@ -39,6 +39,32 @@ func NewDefult() *Scheduler {
 	return s
 }
 
+func (s *Scheduler) SetLogger(l Logger) {
+	if s.running {
+		panic("cannot set logger while running")
+	}
+	s.logger = l
+}
+
+func (s *Scheduler) SetNextID(id EntryID) {
+	if s.running {
+		panic("scheduler is running")
+	}
+	s.nextID = id
+}
+
+func (s *Scheduler) SetEntries(entries []Entry) {
+	if s.running {
+		panic("cannot set entries while running")
+	}
+	s.runningMu.Lock()
+	defer s.runningMu.Unlock()
+	s.entries = make([]*Entry, len(entries))
+	for i, e := range entries {
+		s.entries[i] = &e
+	}
+}
+
 func (s *Scheduler) AddJob(job Job, schedule Schedule) EntryID {
 	s.runningMu.Lock()
 	defer s.runningMu.Unlock()
@@ -51,7 +77,7 @@ func (s *Scheduler) AddJob(job Job, schedule Schedule) EntryID {
 	if s.running {
 		s.add <- entry
 	} else {
-		s.entries = append(s.entries, entry)
+		s.addEntry(entry)
 	}
 	return entry.ID
 }
@@ -94,9 +120,16 @@ func (s *Scheduler) removeEntry(id EntryID) {
 	for _, v := range s.entries {
 		if v.ID != id {
 			entries = append(entries, v)
+		} else {
+			s.logger.EntryRemoved(v)
 		}
 	}
 	s.entries = entries
+}
+
+func (s *Scheduler) addEntry(entry *Entry) {
+	s.entries = append(s.entries, entry)
+	s.logger.EntryAdded(entry)
 }
 
 func (s *Scheduler) now() time.Time {
@@ -106,8 +139,13 @@ func (s *Scheduler) now() time.Time {
 func (s *Scheduler) updateEntries(now time.Time) {
 	entries := []*Entry{}
 	for _, v := range s.entries {
+		if !v.Next.IsZero() {
+			entries = append(entries, v)
+			continue
+		}
 		v.Next = v.Schedule.Next(now)
 		if !v.Next.IsZero() {
+			s.logger.EntryAdded(v)
 			entries = append(entries, v)
 		}
 	}
@@ -161,6 +199,7 @@ func (s *Scheduler) run() {
 						s.startJob(v.Job)
 						v.Prev = v.Next
 						v.Next = v.Schedule.Next(now)
+						s.logger.EntryUpdated(v)
 						if v.Next.IsZero() {
 							s.removeEntry(v.ID)
 						}
@@ -172,7 +211,7 @@ func (s *Scheduler) run() {
 				now = s.now()
 				newEntry.Next = newEntry.Schedule.Next(now)
 				if !newEntry.Next.IsZero() {
-					s.entries = append(s.entries, newEntry)
+					s.addEntry(newEntry)
 					s.logger.Info("jobAdded", "id", newEntry.ID)
 				}
 			case id := <-s.remove:

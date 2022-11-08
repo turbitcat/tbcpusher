@@ -1,5 +1,13 @@
 package database
 
+import (
+	"context"
+	"fmt"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
 func Map[T any, R any](l []T, f func(T) R) []R {
 	r := make([]R, len(l))
 	for i, v := range l {
@@ -28,4 +36,15 @@ func MapErr[T any, R any](l []T, f func(T) (R, error)) ([]R, error) {
 		r[i] = m
 	}
 	return r, nil
+}
+
+func setSomethingById(ctx context.Context, collection *mongo.Collection, id any, key string, val any) error {
+	r, err := collection.UpdateByID(ctx, id, bson.D{{"$set", bson.D{{key, val}}}})
+	if err != nil {
+		return err
+	}
+	if r.MatchedCount != 1 {
+		return fmt.Errorf("matched count is %v", r.MatchedCount)
+	}
+	return nil
 }
