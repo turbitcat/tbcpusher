@@ -9,9 +9,6 @@ import (
 type Logger interface {
 	Info(msg string, v ...any)
 	Error(err error, msg string, v ...any)
-	EntryAdded(*Entry)
-	EntryRemoved(*Entry)
-	EntryUpdated(*Entry)
 }
 
 func PrintlnLogger() Logger {
@@ -41,9 +38,3 @@ func (p *printlnLogger) Error(err error, msg string, v ...any) {
 		fmt.Fprintln(p.infoW, m)
 	}
 }
-
-func (p *printlnLogger) EntryAdded(*Entry) {}
-
-func (p *printlnLogger) EntryRemoved(*Entry) {}
-
-func (p *printlnLogger) EntryUpdated(*Entry) {}

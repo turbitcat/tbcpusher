@@ -29,14 +29,13 @@ type Database interface {
 	GetSessionByID(id string) (Session, error)
 	GetAllGroups() ([]Group, error)
 	GetAllEntries(SaveableGetter[Schedule], SaveableGetter[Job]) ([]Entry, error)
-	GetMaxEntryID() (scheduler.EntryID, error)
-	GetEntryByID(scheduler.EntryID, SaveableGetter[Schedule], SaveableGetter[Job]) (Entry, error)
+	GetEntryByID(string, SaveableGetter[Schedule], SaveableGetter[Job]) (Entry, error)
 	Close()
 }
 
 type Entry interface {
+	scheduler.Entry
 	Save() error
 	Delete() error
-	ToEntry() scheduler.Entry
-	GetID() scheduler.EntryID
+	GetID() string
 }

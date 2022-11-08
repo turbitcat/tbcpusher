@@ -42,8 +42,8 @@ func NewServer(db database.Database) Server {
 	s := wsgo.Default()
 	s.Use(wsgo.ParseParamsJSON)
 	sc := scheduler.NewDefult()
-	e := database.SetUpScheduler(db, sc, ScheduleGetter, JobGetter)
-	sc.SetLogger(NewSchedulerLogger(db, e))
+	list := database.NewEntryList(db, ScheduleGetter, JobGetter)
+	sc.SetEntries(list)
 	return Server{db: db, addr: ":8000", router: s, scheduler: sc}
 }
 
