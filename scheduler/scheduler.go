@@ -151,7 +151,7 @@ func (s *Scheduler) run() {
 						if n.IsZero() {
 							s.removeEntry(v)
 						}
-						s.logger.Info("jobRunning", "job", v.Job(), "now", now, "next", n)
+						s.logger.Info("jobRunning", "now", now, "next", n)
 					}
 				}
 			case newEntry := <-s.add:
