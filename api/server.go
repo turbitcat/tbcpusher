@@ -10,26 +10,6 @@ import (
 	"github.com/turbitcat/tbcpusher/v2/wsgo"
 )
 
-// Article ...
-type Article struct {
-	Title  string `json:"Title"`
-	Author string `json:"author"`
-	Link   string `json:"link"`
-}
-
-// Articles ...
-var Articles []Article = []Article{
-	{Title: "Python Intermediate and Advanced 101",
-		Author: "Arkaprabha Majumdar",
-		Link:   "https://www.amazon.com/dp/B089KVK23P"},
-	{Title: "R programming Advanced",
-		Author: "Arkaprabha Majumdar",
-		Link:   "https://www.amazon.com/dp/B089WH12CR"},
-	{Title: "R programming Fundamentals",
-		Author: "Arkaprabha Majumdar",
-		Link:   "https://www.amazon.com/dp/B089S58WWG"},
-}
-
 type Server struct {
 	db        database.Database
 	addr      string
@@ -76,6 +56,9 @@ func (s *Server) Serve() error {
 	// })
 	// create a group
 	// data={}
+	r.Handle(s.prefix+"/doc", func(c *wsgo.Context) {
+		c.FormatedJson(http.StatusOK, Docs)
+	})
 	r.Handle(s.prefix+"/group/create", func(c *wsgo.Context) {
 		data, _ := c.Param("data")
 		id, err := s.db.NewGroup(data)
