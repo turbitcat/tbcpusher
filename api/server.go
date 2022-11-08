@@ -61,19 +61,19 @@ func (s *Server) SetPrefix(p string) {
 func (s *Server) Serve() error {
 	r := s.router
 	// get all groups
-	r.Handle(s.prefix+"/group/all", func(c *wsgo.Context) {
-		groups, err := s.db.GetAllGroups()
-		if err != nil {
-			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
-			return
-		}
-		var ret []wsgo.H
-		for _, g := range groups {
-			group := Group{g}
-			ret = append(ret, group.WsgoHWithSessions())
-		}
-		c.Json(http.StatusOK, ret)
-	})
+	// r.Handle(s.prefix+"/group/all", func(c *wsgo.Context) {
+	// 	groups, err := s.db.GetAllGroups()
+	// 	if err != nil {
+	// 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+	// 		return
+	// 	}
+	// 	var ret []wsgo.H
+	// 	for _, g := range groups {
+	// 		group := Group{g}
+	// 		ret = append(ret, group.WsgoHWithSessions())
+	// 	}
+	// 	c.Json(http.StatusOK, ret)
+	// })
 	// create a group
 	// data={}
 	r.Handle(s.prefix+"/group/create", func(c *wsgo.Context) {
@@ -189,6 +189,36 @@ func (s *Server) Serve() error {
 		}
 		ret := Session{session}.WsgoHWithGroup()
 		c.Json(http.StatusOK, ret)
+	})
+	// set session data
+	// session={sessionid}
+	r.Handle(s.prefix+"/session/setdata", requireString("session"), func(c *wsgo.Context) {
+		sid, _ := c.StringParam("session")
+		data, _ := c.Param("data")
+		session, err := s.db.GetSessionByID(sid)
+		if err != nil {
+			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			return
+		}
+		if err := session.SetData(data); err != nil {
+			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			return
+		}
+	})
+	// set group data
+	// group={groupid}
+	r.Handle(s.prefix+"/group/setdata", requireString("group"), func(c *wsgo.Context) {
+		gid, _ := c.StringParam("group")
+		data, _ := c.Param("data")
+		group, err := s.db.GetGroupByID(gid)
+		if err != nil {
+			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			return
+		}
+		if err := group.SetData(data); err != nil {
+			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			return
+		}
 	})
 	// hide session
 	// session={sessionid}
