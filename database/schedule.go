@@ -138,17 +138,30 @@ func (e *entry) Save() error {
 	if err != nil {
 		return err
 	}
-	r, err := e.db.scheduleCollection.InsertOne(e.db.ctx, b)
-	if err != nil {
-		return err
+	if e.id.IsZero() {
+		r, err := e.db.scheduleCollection.InsertOne(e.db.ctx, b)
+		if err != nil {
+			return err
+		}
+		e.id = r.InsertedID.(primitive.ObjectID)
+	} else {
+		_, err := e.db.scheduleCollection.UpdateOne(e.db.ctx, bson.M{"_id": e.id}, bson.M{"$set": b})
+		if err != nil {
+			return err
+		}
 	}
-	e.id = r.InsertedID.(primitive.ObjectID)
 	return nil
 }
 
 func (e *entry) Delete() error {
-	_, err := e.db.scheduleCollection.DeleteOne(e.db.ctx, bson.M{"_id": e.id})
-	return err
+	r, err := e.db.scheduleCollection.DeleteOne(e.db.ctx, bson.M{"_id": e.id})
+	if err != nil {
+		return err
+	}
+	if r.DeletedCount != 1 {
+		return fmt.Errorf("deleted %d entries", r.DeletedCount)
+	}
+	return nil
 }
 
 func (db *MongoDatabase) GetAllEntries(scheduleGetter SaveableGetter[Schedule], jobGetter SaveableGetter[Job]) ([]Entry, error) {
