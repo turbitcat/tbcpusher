@@ -1,14 +1,12 @@
-FROM golang:latest
+FROM golang:1.19 AS builder
 
-# COPY . /tmp/build/tbcpusher
-WORKDIR /tmp/build
-RUN git clone https://github.com/turbitcat/tbcpusher.git
-WORKDIR /tmp/build/tbcpusher/plugins/telegram
-RUN go build
-RUN cp telegram /root
-RUN rm -rf /tmp/build
-WORKDIR /root
+WORKDIR /go/src/telegram
+COPY . .
+RUN CGO_ENABLED=0 go build -o /go/bin/telegram
+
+FROM gcr.io/distroless/static-debian11
+COPY --from=builder /go/bin/telegram /
 
 EXPOSE 8000
 
-ENTRYPOINT ["/root/telegram"]
+CMD ["/telegram"]
