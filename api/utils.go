@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/golang/gddo/httputil/header"
+	"github.com/turbitcat/tbcpusher/v2/wsgo/header"
 )
 
 func contains[T any](m map[string]T, keys ...string) bool {

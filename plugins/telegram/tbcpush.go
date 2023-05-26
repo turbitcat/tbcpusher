@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/golang/gddo/httputil/header"
-	"github.com/turbitcat/tbcpusher/plugin/telegram/v2/wsgo"
+	"github.com/turbitcat/tbcpusher/plugins/telegram/v2/wsgo"
+	"github.com/turbitcat/tbcpusher/v2/wsgo/header"
 )
 
 type SessionInfo struct {

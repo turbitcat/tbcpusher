@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/turbitcat/tbcpusher/plugin/telegram/v2/config"
+	"github.com/turbitcat/tbcpusher/plugins/telegram/v2/config"
 )
 
 func fileExists(filename string) bool {
