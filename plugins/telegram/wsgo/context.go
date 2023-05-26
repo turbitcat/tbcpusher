@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/turbitcat/tbcpusher/v2/wsgo/header"
+	"github.com/golang/gddo/httputil/header"
 )
 
 type Context struct {
