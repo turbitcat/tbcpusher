@@ -26,9 +26,6 @@ func ParseParamsQuery(c *Context) {
 
 func ParseParamsJSON(c *Context) {
 	defer c.Next()
-	if c.ContentType() != "application/json" {
-		return
-	}
 	dir := map[string]any{}
 	if err := c.BindJSON(&dir); err != nil {
 		return
