@@ -45,6 +45,7 @@ func (s *Server) Serve() error {
 	// 	groups, err := s.db.GetAllGroups()
 	// 	if err != nil {
 	// 		c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+	// 		c.Log("%v", err)
 	// 		return
 	// 	}
 	// 	var ret []wsgo.H
@@ -83,14 +84,16 @@ func (s *Server) Serve() error {
 			}
 			sid, err = g.NewSession(hook, data)
 			if err != nil {
-				c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+				c.Log("NewSession: %v", err)
 				return
 			}
 		} else {
 			var err error
 			sid, err = s.db.NewSession(hook, data)
 			if err != nil {
-				c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+				c.Log("NewSession: %v", err)
 				return
 			}
 		}
@@ -119,7 +122,8 @@ func (s *Server) Serve() error {
 		} else {
 			resps, err := Group{g}.Push(&m)
 			if err != nil {
-				c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+				c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+				c.Log("push to group %v: %v", gid, err)
 				return
 			}
 			succ := []string{}
@@ -127,7 +131,7 @@ func (s *Server) Serve() error {
 				if resp.Err == nil {
 					succ = append(succ, resp.Session.GetID())
 				} else {
-					c.LogIfLogging("push to group session %v: %v", resp.Session.GetID(), resp.Err)
+					c.Log("push to group session %v: %v", resp.Session.GetID(), resp.Err)
 				}
 			}
 			c.Json(http.StatusOK, succ)
@@ -185,6 +189,7 @@ func (s *Server) Serve() error {
 		}
 		if err := session.SetData(data); err != nil {
 			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			c.Log("session %v set data %v: %v", sid, data, err)
 			return
 		}
 	})
@@ -200,6 +205,7 @@ func (s *Server) Serve() error {
 		}
 		if err := group.SetData(data); err != nil {
 			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			c.Log("group %v set data %v: %v", gid, data, err)
 			return
 		}
 	})
@@ -213,7 +219,8 @@ func (s *Server) Serve() error {
 			return
 		}
 		if err := session.Hide(); err != nil {
-			c.String(http.StatusInternalServerError, http.StatusText(http.StatusBadRequest))
+			c.String(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+			c.Log("hide session %v: %v", sid, err)
 			return
 		}
 	})
