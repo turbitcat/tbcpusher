@@ -65,6 +65,7 @@ func (s *Server) Serve() error {
 		id, err := s.db.NewGroup(data)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		c.Json(http.StatusOK, wsgo.H{"id": id})
@@ -80,6 +81,7 @@ func (s *Server) Serve() error {
 			g, err := s.db.GetGroupByID(gid)
 			if err != nil {
 				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+				c.Log("Bad Request: %v", err)
 				return
 			}
 			sid, err = g.NewSession(hook, data)
@@ -106,6 +108,7 @@ func (s *Server) Serve() error {
 		g, err := s.db.GetGroupByID(gid)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		ps := c.StringParams()
@@ -115,6 +118,7 @@ func (s *Server) Serve() error {
 			when_int, err := strconv.ParseInt(when, 10, 64)
 			if err != nil {
 				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+				c.Log("Bad Request: %v", err)
 				return
 			}
 			ti := time.Unix(0, when_int*1000000)
@@ -144,6 +148,7 @@ func (s *Server) Serve() error {
 		session, err := s.db.GetSessionByID(sid)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		ps := c.StringParams()
@@ -153,6 +158,7 @@ func (s *Server) Serve() error {
 			when_int, err := strconv.ParseInt(when, 10, 64)
 			if err != nil {
 				c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+				c.Log("Bad Request: %v", err)
 				return
 			}
 			ti := time.Unix(0, when_int*1000000)
@@ -172,6 +178,7 @@ func (s *Server) Serve() error {
 		session, err := s.db.GetSessionByID(sid)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		ret := Session{session}.WsgoHWithGroup()
@@ -185,6 +192,7 @@ func (s *Server) Serve() error {
 		session, err := s.db.GetSessionByID(sid)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		if err := session.SetData(data); err != nil {
@@ -201,6 +209,7 @@ func (s *Server) Serve() error {
 		group, err := s.db.GetGroupByID(gid)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		if err := group.SetData(data); err != nil {
@@ -216,6 +225,7 @@ func (s *Server) Serve() error {
 		session, err := s.db.GetSessionByID(sid)
 		if err != nil {
 			c.String(http.StatusBadRequest, http.StatusText(http.StatusBadRequest))
+			c.Log("Bad Request: %v", err)
 			return
 		}
 		if err := session.Hide(); err != nil {
